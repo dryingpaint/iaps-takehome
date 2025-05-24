@@ -5,10 +5,11 @@ A comprehensive web research tool that performs parallel searches using OpenAI a
 ## Features
 
 - **Intelligent Query Generation**: Uses OpenAI to generate diverse, focused search queries from a base query
-- **Parallel Web Search**: Executes multiple searches simultaneously using the Exa search API
-- **Smart URL Filtering**: Uses AI to extract only relevant URLs based on your specific instruction
-- **Content Extraction**: Fetches and processes content from web pages
-- **AI-Powered Summaries**: Generates concise summaries of each visited page
+- **Parallel Web Search**: Executes multiple searches simultaneously using the Exa search API with full content retrieval
+- **Smart Content Filtering**: Uses AI to extract only relevant content based on your specific instruction
+- **Automatic File Saving**: Saves relevant information from each webpage to individual markdown files
+- **AI-Powered Content Extraction**: Analyzes webpage content and extracts only information relevant to your research task
+- **Comprehensive Summaries**: Generates concise summaries of each webpage's content
 - **Async Processing**: All operations are performed asynchronously for maximum efficiency
 
 ## Prerequisites
@@ -80,12 +81,13 @@ async def main():
     openai_api_key = os.getenv("OPENAI_API_KEY")
     exa_api_key = os.getenv("EXA_API_KEY")
     
-    async with BatchSearcher(openai_api_key, exa_api_key) as searcher:
+    # You can specify a custom output directory
+    async with BatchSearcher(openai_api_key, exa_api_key, output_dir="my_research") as searcher:
         result = await searcher.batch_search(
             query="impact of artificial intelligence on healthcare",
-            instruction="Find detailed information about AI applications in healthcare",
+            instruction="Find detailed information about AI applications in healthcare, including use cases, benefits, and challenges",
             num_queries=5,  # Generate 5 diverse search queries
-            max_urls=15     # Visit top 15 URLs
+            max_results=15  # Process top 15 results
         )
         print(result)
 
@@ -121,14 +123,14 @@ This will execute searches for several example topics and display the results.
 #### `__init__(openai_api_key: str, exa_api_key: str)`
 Initialize the batch searcher with API keys.
 
-#### `batch_search(query: str, instruction: str, num_queries: int, max_urls: int) -> str`
+#### `batch_search(query: str, instruction: str, num_queries: int, max_results: int) -> str`
 Perform comprehensive web research.
 
 **Parameters:**
 - `query`: Base search query (should be broad enough for diverse sub-queries)
-- `instruction`: Specific instruction for filtering relevant URLs
+- `instruction`: Specific instruction for filtering relevant content
 - `num_queries`: Number of diverse queries to generate (default: 5)
-- `max_urls`: Maximum number of URLs to visit (default: 20)
+- `max_results`: Maximum number of results to process (default: 20)
 
 **Returns:**
 Formatted string containing search results, visited URLs, and summaries.
@@ -136,11 +138,44 @@ Formatted string containing search results, visited URLs, and summaries.
 ## How It Works
 
 1. **Query Generation**: Takes your base query and uses OpenAI to generate diverse, focused search queries
-2. **Parallel Search**: Executes all generated queries simultaneously using Exa's search API
-3. **URL Filtering**: Uses AI to analyze search results and extract only URLs relevant to your instruction
-4. **Content Fetching**: Visits selected URLs in parallel to extract content
-5. **Summarization**: Generates concise summaries of each page's content using OpenAI
-6. **Results Compilation**: Formats all findings into a comprehensive report
+2. **Parallel Search with Content**: Executes all generated queries simultaneously using Exa's `search_and_contents` API to get both search results and full page content
+3. **Content Filtering**: Uses AI to analyze search results and filter only those relevant to your specific instruction
+4. **Content Extraction & File Saving**: For each relevant webpage:
+   - Analyzes the full content using AI to extract only information relevant to your research task
+   - Saves the relevant information to a markdown file (one file per webpage)
+   - Generates a concise summary of the content
+5. **Results Compilation**: Formats all findings into a comprehensive report with links to saved files
+
+## File Organization
+
+The script automatically organizes results with intelligent folder structure:
+
+### Directory Structure
+```
+search_results/                    # Base output directory (configurable)
+├── ai_healthcare_apps/           # LLM-generated folder for first query
+│   ├── example_com_ai_medical.md
+│   ├── pubmed_gov_healthcare_ai.md
+│   └── ...
+├── climate_renewable_energy/     # LLM-generated folder for second query  
+│   ├── energy_gov_renewables.md
+│   ├── nature_com_climate_study.md
+│   └── ...
+└── ev_market_trends/            # LLM-generated folder for third query
+    ├── tesla_com_market_data.md
+    └── ...
+```
+
+### Folder Naming
+- **Automatic Generation**: Each query gets its own folder with an AI-generated descriptive name
+- **Smart Naming**: Uses the query and instruction to create meaningful folder names (e.g., "ai_healthcare_apps", "climate_renewable_energy")
+- **Filesystem Safe**: All folder names are sanitized for cross-platform compatibility
+- **Organized Results**: Keeps different research topics completely separate
+
+### File Details
+- **Individual webpage files**: Each relevant webpage gets its own markdown file with extracted information
+- **Filename format**: `{domain}_{sanitized_title}.md`
+- **Content format**: Well-structured markdown with relevant information only, including source URL
 
 ## Example Queries
 
@@ -175,14 +210,15 @@ The script respects API rate limits by:
 
 You can customize the behavior by modifying these parameters:
 - `num_queries`: Number of search queries to generate
-- `max_urls`: Maximum URLs to visit
-- Timeout values in `fetch_url_content()`
+- `max_results`: Maximum results to process
+- `output_dir`: Directory where extracted content files are saved
 - OpenAI model and parameters in generation functions
 
 ## Dependencies
 
 - `openai`: OpenAI API client
 - `exa-py`: Exa search API client
+- `python-dotenv`: Environment variable management
 
 ## License
 

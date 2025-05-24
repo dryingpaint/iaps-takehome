@@ -1,7 +1,8 @@
 import asyncio
 import logging
-import os
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -27,15 +28,180 @@ class SearchResult:
 
 
 class BatchSearcher:
-    def __init__(self, openai_api_key: str, exa_api_key: str):
+    def __init__(self, openai_api_key: str, exa_api_key: str, output_dir: str = "search_results"):
         self.openai_client = AsyncOpenAI(api_key=openai_api_key)
         self.exa = Exa(api_key=exa_api_key)
+        self.base_output_dir = Path(output_dir)
+        self.base_output_dir.mkdir(exist_ok=True)
+        self.output_dir: Optional[Path] = None  # Will be set per query
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         pass
+
+    async def _generate_folder_name(self, query: str, instruction: str) -> str:
+        """Generate a descriptive folder name for the query using LLM."""
+        prompt = f"""Generate a short, descriptive folder name (2-4 words) for organizing search results about this query.
+
+Query: "{query}"
+Task: "{instruction}"
+
+Requirements:
+- Use only letters, numbers, underscores, and hyphens
+- Keep it under 50 characters
+- Make it descriptive but concise
+- Use snake_case format
+- Focus on the main topic/subject
+
+Examples:
+- "AI healthcare applications" → "ai_healthcare_apps"
+- "climate change renewable energy" → "climate_renewable_energy"
+- "electric vehicle market trends" → "ev_market_trends"
+
+Folder name:"""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=50,
+            )
+
+            content = response.choices[0].message.content
+            if content:
+                # Clean the folder name to ensure it's filesystem-safe
+                folder_name = content.strip().lower()
+                folder_name = re.sub(r"[^\w\s-]", "", folder_name)
+                folder_name = re.sub(r"[-\s]+", "_", folder_name)
+                return folder_name[:50]  # Limit length
+
+            # Fallback to a simple version of the query
+            return re.sub(r"[^\w\s-]", "", query.lower())[:30].replace(" ", "_")
+        except Exception as e:
+            logger.error(f"Error generating folder name: {e}")
+            # Fallback to a simple version of the query
+            return re.sub(r"[^\w\s-]", "", query.lower())[:30].replace(" ", "_")
+
+    def _sanitize_filename(self, url: str, title: str) -> str:
+        """Create a safe filename from URL and title."""
+        # Extract domain from URL
+        domain = re.sub(r"https?://", "", url).split("/")[0]
+
+        # Clean title for filename
+        if title:
+            # Take first 50 chars of title and clean it
+            clean_title = re.sub(r"[^\w\s-]", "", title[:50]).strip()
+            clean_title = re.sub(r"[-\s]+", "_", clean_title)
+        else:
+            clean_title = "untitled"
+
+        # Combine domain and title
+        filename = f"{domain}_{clean_title}.md"
+
+        # Ensure it's a valid filename
+        filename = re.sub(r'[<>:"/\\|?*]', "_", filename)
+        return filename
+
+    async def _generate_saved_artifact_from_web_scrape(self, task: str, url: str, content: str) -> str | None:
+        """
+        Generate a saved artifact for the web page that only contains information that is relevant to the task.
+        If no information is relevant, return None.
+
+        Args:
+            task: The research task to evaluate content against
+            url: The source URL of the webpage
+            content: The webpage content to analyze
+
+        Returns:
+            str | None: A markdown artifact containing relevant information, or None if no relevant information found
+        """
+        query = f"""You are an expert research assistant analyzing webpage content for relevance to a specific task.
+
+TASK: "{task}"
+URL: {url}
+
+INSTRUCTIONS:
+1. First, determine if ANY content is relevant to the task. If not, respond with ONLY "NO_RELEVANT_INFORMATION"
+2. If relevant content exists:
+   - Extract and organize ALL information that is directly relevant to the task
+   - Include a brief summary of how the content relates to the task
+   - Include key facts, data points, insights, and important quotes
+   - Include relevant images, tables, and other media
+   - Preserve any context needed to understand the information
+   - If content is only tangentially related, explain why it might be useful
+
+RULES:
+- Use clear, hierarchical markdown formatting
+- Include ALL information that helps address the task
+- Exclude duplicate information and external links
+- Maintain a logical flow of information
+- Add the source URL at the end of your response with a new line: `Source URL: {url}`
+
+CONTENT TO ANALYZE:
+{content}"""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": query}],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+
+            content_response = response.choices[0].message.content
+            if not content_response:
+                return None
+
+            # Check if the response indicates no relevant information
+            if "no_relevant_information" in content_response.strip().lower():
+                return None
+
+            if "source url" not in content_response.strip().lower():
+                content_response += f"\nSource URL: {url}"
+
+            return content_response
+        except Exception as e:
+            logger.error(f"Error generating artifact for {url}: {e}")
+            return None
+
+    async def _save_webpage_content(self, result: dict, task: str) -> Optional[str]:
+        """Save relevant webpage content to a file."""
+        try:
+            if self.output_dir is None:
+                logger.error("Output directory not set")
+                return None
+
+            url = result.get("url", "")
+            title = result.get("title", "")
+            content = result.get("text", "")
+
+            if not content:
+                return None
+
+            # Generate relevant artifact
+            artifact = await self._generate_saved_artifact_from_web_scrape(task, url, content)
+
+            if not artifact:
+                logger.info(f"No relevant information found for {url}")
+                return None
+
+            # Create filename
+            filename = self._sanitize_filename(url, title)
+            filepath = self.output_dir / filename
+
+            # Save to file
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(artifact)
+
+            logger.info(f"Saved relevant content to {filepath}")
+            return str(filepath)
+
+        except Exception as e:
+            logger.error(f"Error saving content for {result.get('url', 'unknown')}: {e}")
+            return None
 
     async def generate_search_queries(self, base_query: str, n_queries: int = 5) -> List[str]:
         """Generate {n_queries} diverse search queries based on the base query using OpenAI."""
@@ -262,40 +428,53 @@ class BatchSearcher:
             # Fallback: return first 10 results
             return search_results[:10]
 
-    async def generate_summaries(self, results: List[dict]) -> List[SearchResult]:
-        """Generate summaries for search results in parallel."""
+    async def generate_summaries(self, results: List[dict], task: str) -> List[SearchResult]:
+        """Generate summaries for search results in parallel and save relevant content to files."""
         logger.info(f"Generating summaries for {len(results)} results")
 
-        # Generate summaries in parallel
+        # Generate summaries and save files in parallel
         summary_tasks = [
             self.summarize_url_content(result.get("text", ""), result.get("url", "")) for result in results
         ]
-        summaries = await asyncio.gather(*summary_tasks, return_exceptions=True)
+        file_save_tasks = [self._save_webpage_content(result, task) for result in results]
+
+        # Execute both sets of tasks in parallel
+        summaries, saved_files = await asyncio.gather(
+            asyncio.gather(*summary_tasks, return_exceptions=True),
+            asyncio.gather(*file_save_tasks, return_exceptions=True),
+        )
 
         # Create SearchResult objects
         search_results = []
-        for result, summary in zip(results, summaries, strict=False):
+        for result, summary, saved_file in zip(results, summaries, saved_files, strict=False):
+            # Handle summary
             if isinstance(summary, str):
-                search_results.append(
-                    SearchResult(
-                        url=result.get("url", ""),
-                        title=result.get("title", ""),
-                        content=result.get("text", ""),
-                        summary=summary,
-                        success=True,
-                    )
-                )
+                summary_text = summary
+                success = True
+                error_msg = ""
             else:
-                search_results.append(
-                    SearchResult(
-                        url=result.get("url", ""),
-                        title=result.get("title", ""),
-                        content=result.get("text", ""),
-                        summary=f"Error generating summary: {str(summary)}",
-                        success=False,
-                        error_message=str(summary),
-                    )
+                summary_text = f"Error generating summary: {str(summary)}"
+                success = False
+                error_msg = str(summary)
+
+            # Handle saved file
+            file_path = None
+            if isinstance(saved_file, str):
+                file_path = saved_file
+            elif isinstance(saved_file, Exception):
+                logger.warning(f"Error saving file for {result.get('url', 'unknown')}: {saved_file}")
+
+            search_results.append(
+                SearchResult(
+                    url=result.get("url", ""),
+                    title=result.get("title", ""),
+                    content=result.get("text", ""),
+                    summary=summary_text,
+                    success=success,
+                    error_message=error_msg,
+                    saved_file=file_path,
                 )
+            )
 
         return search_results
 
@@ -310,6 +489,12 @@ class BatchSearcher:
         logger.info(f"Starting batch search for: {query}")
 
         try:
+            # Generate folder name for this query and set up directory
+            folder_name = await self._generate_folder_name(query, instruction)
+            self.output_dir = self.base_output_dir / folder_name
+            self.output_dir.mkdir(exist_ok=True)
+            logger.info(f"Created output directory: {self.output_dir}")
+
             # Generate diverse search queries
             search_queries = await self.generate_search_queries(query, n_queries=num_queries)
             logger.info(f"Generated {len(search_queries)} search queries: {search_queries}")
@@ -323,64 +508,39 @@ class BatchSearcher:
 
             # Limit results and generate summaries
             limited_results = relevant_results[:max_results]
-            search_results = await self.generate_summaries(limited_results)
+            search_results = await self.generate_summaries(limited_results, instruction)
+
+            # Count saved files
+            saved_files_count = sum(1 for result in search_results if result.saved_file)
 
             # Format results
             output_lines = [f"Batch search results for: {query}\n"]
+            output_lines.append(f"Task/Instruction: {instruction}\n")
             output_lines.append(f"Generated {len(search_queries)} search queries:")
             for i, sq in enumerate(search_queries, 1):
                 output_lines.append(f"  {i}. {sq}")
-            output_lines.append(f"\nProcessed {len(search_results)} results:\n")
+            output_lines.append(f"\nProcessed {len(search_results)} results")
+            output_lines.append(f"Saved {saved_files_count} files with relevant content to: {self.output_dir}\n")
 
             for i, result in enumerate(search_results, 1):
                 if result.success:
                     output_lines.append(f"{i}. {result.url}")
                     output_lines.append(f"   Title: {result.title}")
-                    output_lines.append(f"   Summary: {result.summary}\n")
+                    output_lines.append(f"   Summary: {result.summary}")
+                    if result.saved_file:
+                        output_lines.append(f"   📄 Saved File: {result.saved_file}")
+                    else:
+                        output_lines.append("   ❌ No relevant content saved")
+                    output_lines.append("")
                 else:
                     output_lines.append(f"{i}. {result.url}")
-                    output_lines.append(f"   Error: {result.error_message}\n")
+                    output_lines.append(f"   Error: {result.error_message}")
+                    if result.saved_file:
+                        output_lines.append(f"   📄 Saved File: {result.saved_file}")
+                    output_lines.append("")
 
             return "\n".join(output_lines)
 
         except Exception as e:
             logger.error(f"Error in batch search: {e}")
             return f"Error during batch search: {str(e)}"
-
-
-async def main():
-    """Example usage of the batch search functionality."""
-    # Get API keys from environment variables
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    exa_api_key = os.getenv("EXA_API_KEY")
-
-    if not openai_api_key or not exa_api_key:
-        print("Please set OPENAI_API_KEY and EXA_API_KEY environment variables")
-        return
-
-    async with BatchSearcher(openai_api_key, exa_api_key) as searcher:
-        # Example searches
-        queries = [
-            "impact of artificial intelligence on healthcare",
-            "climate change and renewable energy solutions",
-            "future of electric vehicles market trends",
-        ]
-
-        for query in queries:
-            print(f"\n{'='*60}")
-            print(f"Searching for: {query}")
-            print("=" * 60)
-
-            result = await searcher.batch_search(
-                query=query,
-                instruction=f"Find detailed information about {query}",
-                num_queries=3,  # Generate 3 diverse queries
-                max_results=20,  # Visit top 10 results
-            )
-
-            print(result)
-            print("\n" + "=" * 60 + "\n")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
