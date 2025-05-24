@@ -3,7 +3,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from exa_py import Exa  # type: ignore
@@ -14,6 +14,20 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BatchSearchResult:
+    """Structured result from batch search containing both summary and file mappings."""
+
+    query: str
+    instruction: str
+    search_queries: List[str]
+    results_summary: str
+    url_to_file_mapping: Dict[str, str]  # URL -> file path
+    output_directory: str
+    total_results: int
+    saved_files_count: int
 
 
 @dataclass
@@ -484,7 +498,7 @@ CONTENT TO ANALYZE:
         instruction: str = "Find relevant information about the query",
         num_queries: int = 5,
         max_results: int = 20,
-    ) -> str:
+    ) -> BatchSearchResult:
         """Perform comprehensive web research by executing multiple parallel searches."""
         logger.info(f"Starting batch search for: {query}")
 
@@ -504,16 +518,31 @@ CONTENT TO ANALYZE:
             logger.info(f"Found {len(relevant_results)} relevant results")
 
             if not relevant_results:
-                return "No relevant results found for the given query."
+                return BatchSearchResult(
+                    query=query,
+                    instruction=instruction,
+                    search_queries=search_queries,
+                    results_summary="No relevant results found for the given query.",
+                    url_to_file_mapping={},
+                    output_directory=str(self.output_dir),
+                    total_results=0,
+                    saved_files_count=0,
+                )
 
             # Limit results and generate summaries
             limited_results = relevant_results[:max_results]
             search_results = await self.generate_summaries(limited_results, instruction)
 
-            # Count saved files
-            saved_files_count = sum(1 for result in search_results if result.saved_file)
+            # Create URL to file mapping
+            url_to_file_mapping = {}
+            for result in search_results:
+                if result.saved_file:
+                    url_to_file_mapping[result.url] = result.saved_file
 
-            # Format results
+            # Count saved files
+            saved_files_count = len(url_to_file_mapping)
+
+            # Format results summary
             output_lines = [f"Batch search results for: {query}\n"]
             output_lines.append(f"Task/Instruction: {instruction}\n")
             output_lines.append(f"Generated {len(search_queries)} search queries:")
@@ -539,8 +568,28 @@ CONTENT TO ANALYZE:
                         output_lines.append(f"   📄 Saved File: {result.saved_file}")
                     output_lines.append("")
 
-            return "\n".join(output_lines)
+            results_summary = "\n".join(output_lines)
+
+            return BatchSearchResult(
+                query=query,
+                instruction=instruction,
+                search_queries=search_queries,
+                results_summary=results_summary,
+                url_to_file_mapping=url_to_file_mapping,
+                output_directory=str(self.output_dir),
+                total_results=len(search_results),
+                saved_files_count=saved_files_count,
+            )
 
         except Exception as e:
             logger.error(f"Error in batch search: {e}")
-            return f"Error during batch search: {str(e)}"
+            return BatchSearchResult(
+                query=query,
+                instruction=instruction,
+                search_queries=[],
+                results_summary=f"Error during batch search: {str(e)}",
+                url_to_file_mapping={},
+                output_directory=str(self.output_dir) if self.output_dir else "",
+                total_results=0,
+                saved_files_count=0,
+            )
