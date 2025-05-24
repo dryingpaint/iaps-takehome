@@ -78,7 +78,7 @@ Folder name:"""
 
         try:
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=50,
@@ -159,7 +159,7 @@ CONTENT TO ANALYZE:
 
         try:
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1",
                 messages=[{"role": "user", "content": query}],
                 temperature=0.3,
                 max_tokens=2000,

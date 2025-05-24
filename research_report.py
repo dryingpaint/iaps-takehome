@@ -165,10 +165,10 @@ Write a comprehensive research report that thoroughly answers the query with pro
 
             # Generate the report using LLM
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4.1",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
-                max_tokens=4000,
+                max_tokens=10000,
             )
 
             report = response.choices[0].message.content

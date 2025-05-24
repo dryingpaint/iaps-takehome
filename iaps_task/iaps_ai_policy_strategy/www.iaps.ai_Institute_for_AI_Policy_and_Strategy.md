@@ -1,36 +1,42 @@
-## Summary
+# Institute for AI Policy and Strategy (IAPS) Overview
 
-The Institute for AI Policy and Strategy (IAPS) is focused on securing the benefits of advanced AI while managing its risks, particularly in the context of national security and global stability. They engage in policy research, talent cultivation, and providing insights to various stakeholders. Their work is centered around AI policy and national security, with a strong emphasis on intellectual independence.
+## Organization Overview, Mission, and Founding
+- **Mission**: The Institute for AI Policy and Strategy (IAPS) focuses on securing benefits and managing risks from advanced AI. It aims to enhance national competitiveness and mitigate emerging risks while fostering innovation.
+- **Who They Are**: IAPS is a U.S.-based organization that collaborates with experts across the U.S. and allied nations to deliver policy research that is technically sound and enhances national security and global stability.
 
-## Key Areas of Focus
+## Research Areas and Focus Topics
+- **Frontier Security**: 
+  - **Cyber and Autonomy**: Examines the implications of autonomous systems on cyber offense-defense balance.
+  - **R&D for AI Security and Assurance**: Focuses on technologies ensuring AI robustness in high-stakes applications.
+  - **Preparedness**: Develops measures for timely response to AI-powered threats to national security and public safety.
 
-### Frontier Security
-- **Cyber and Autonomy**: Examines the impact of autonomous systems on the cyber offense-defense balance.
-- **R&D for AI Security and Assurance**: Focuses on technologies that ensure AI robustness in critical applications.
-- **Preparedness**: Develops measures for timely responses to AI threats to national security and public safety.
+- **Compute Policy**:
+  - Investigates interventions for managing access to AI compute resources.
+  - Focuses on technical enforcement of U.S. export controls, hardware-enabled mechanisms, and information and supply chain security.
 
-### Compute Policy
-- **Export Controls**: Investigates technical mechanisms for enforcing U.S. export controls.
-- **Hardware-Enabled Mechanisms**: Looks into hardware solutions for managing AI compute resources.
-- **Information and Supply Chain Security**: Ensures security in the information and supply chain related to AI.
+- **International Strategy**:
+  - Studies the US-China competition in AI development and its global implications.
+  - Examines global AI state capacity and institutional developments like AI Safety Institutes.
 
-### International Strategy
-- **US-China Competition**: Studies the competition between the US and China in AI development and its global implications.
-- **Global AI State Capacity**: Analyzes institutional developments like AI Safety Institutes and their impact on the international landscape.
+## Team Members, Leadership, and Key Personnel
+- The webpage does not provide specific names or details about team members, leadership, or key personnel.
+
+## Publications, Papers, and Research Output
+- The webpage does not list specific publications, papers, or research outputs.
+
+## Policy Recommendations and Positions
+- IAPS provides policy solutions at the intersection of AI policy and national security, offering insights to stakeholders across various sectors, including Congress, the executive branch, industry, academia, and civil society.
+
+## Focus on AI Security, Compute Policy, International Strategy
+- The organization focuses on AI security through its Frontier Security initiatives, explores compute policy for managing AI resources, and analyzes international strategy with a focus on US-China competition and global AI governance.
 
 ## Role in AI Governance and National Security
-IAPS plays a crucial role in shaping AI governance by providing policy research and recommendations that address strategic competition and potential misuse of AI by adversaries. Their work supports national competitiveness and innovation while mitigating risks associated with advanced AI systems.
+- IAPS plays a role in AI governance by providing policy research and recommendations to enhance national security and manage AI-related risks.
 
-## Team and Community
-IAPS is building a community of researchers and practitioners from diverse policy areas to address the challenges posed by advanced AI. They aim to deliver timely insights to stakeholders in government, industry, academia, and civil society.
+## Recent Activities and Current Projects
+- The webpage does not provide specific details about recent activities or current projects.
 
-## Intellectual Independence
-IAPS emphasizes intellectual independence as a core value in their work, ensuring unbiased and technically sound policy research.
-
-## Visuals
-![IAPS Home Picture](https://images.squarespace-cdn.com/content/v1/64edf8e7f2b10d716b5ba0e1/4a9db605-ef29-4bb5-8589-7576cecd2863/Home+Picture+%283%29.png?format=2500w)
-
-## Conclusion
-The Institute for AI Policy and Strategy is deeply involved in AI policy research with a focus on security, compute policy, and international strategy. Their efforts are directed towards enhancing national security and global stability while fostering innovation and competitiveness in AI.
+## Summary
+The Institute for AI Policy and Strategy (IAPS) is dedicated to addressing the challenges and opportunities posed by advanced AI. Its work spans frontier security, compute policy, and international strategy, with an emphasis on national security and global stability. While the webpage provides an overview of their focus areas, it lacks specific details on team members, publications, and recent projects.
 
 Source URL: https://www.iaps.ai/
